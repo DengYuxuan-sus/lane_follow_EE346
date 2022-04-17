@@ -20,7 +20,7 @@ catkin_package()
 include_directories(include ${catkin_INCLUDE_DIRS})
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-catkin_install_python(PROGRAMS scripts/lane_following.py
+catkin_install_python(PROGRAMS scripts/lane_following_part1.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

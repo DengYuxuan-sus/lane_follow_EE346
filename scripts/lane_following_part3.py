@@ -71,113 +71,6 @@ class Follower:
         self.velocity = 0.6
         self.err_deque = deque()
 
-    def easy_binarization(self,img):
-        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        img_gray[img_gray>127] = 255
-        img_gray[img_gray<=127] = 0
-        return img_gray
-    def caluelate_curvature(self,binary):
-        def find_line_fit(img, nwindows=15, margin=20, minumpyix=5):
-                histogram = numpy.sum(img[img.shape[0]//2:,:], axis=0)
-                # Create an output image to draw on and  visualize the result
-                out_img = numpy.dstack((img, img, img)) * 255
-                # Find the peak of the left and right halves of the histogram
-                # These will be the starting point for the left and right lines
-                midpoint = numpy.int(histogram.shape[0]/2)
-                leftx_base = numpy.argmax(histogram[:midpoint])
-                rightx_base = numpy.argmax(histogram[midpoint:]) + midpoint
-
-                # Set height of windows
-                window_height = numpy.int(img.shape[0]/nwindows)
-                # Identify the x and y positions of all nonzero pixels in the image
-                nonzero = img.nonzero() 
-                nonzeroy = numpy.array(nonzero[0])
-                nonzerox = numpy.array(nonzero[1])
-                # Current positions to be updated for each window
-                leftx_current = leftx_base
-                rightx_current = rightx_base
-                # Create empty lists to receive left and right lane pixel indices
-                left_lane_inds = []
-                right_lane_inds = []
-                for window in range(nwindows):
-                         # Identify window boundaries in x and y (and right and left)
-                        win_y_low = img.shape[0] - (window+1)*window_height
-                        win_y_high = img.shape[0] - window*window_height
-                        win_xleft_low = leftx_current - margin
-                        win_xleft_high = leftx_current + margin
-                        win_xright_low = rightx_current - margin
-                        win_xright_high = rightx_current + margin
-                        # Draw the windows on the visualization image
-                        cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high),
-                        (0,255,0), 2)
-                        cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high),
-                        (0,255,0), 2)
-                        # Identify the nonzero pixels in x and y within the window
-                        good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-                        (nonzerox >= win_xleft_low) &  (nonzerox < win_xleft_high)).nonzero()[0]
-                        good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-                        (nonzerox >= win_xright_low) &  (nonzerox < win_xright_high)).nonzero()[0]
-                        # Append these indices to the lists
-                        left_lane_inds.append(good_left_inds)
-                        right_lane_inds.append(good_right_inds)
-                        # If you found > minumpyix pixels, recenter next window on their mean position
-                        if len(good_left_inds) > minumpyix:
-                                leftx_current = numpy.int(numpy.mean(nonzerox[good_left_inds]))
-                        if len(good_right_inds) > minumpyix:
-                                rightx_current = numpy.int(numpy.mean(nonzerox[good_right_inds]))
-                left_lane_inds = numpy.concatenate(left_lane_inds)
-                right_lane_inds = numpy.concatenate(right_lane_inds)
-
-        # Extract left and right line pixel positions
-                leftx = nonzerox[left_lane_inds]
-                lefty = nonzeroy[left_lane_inds]
-                rightx = nonzerox[right_lane_inds]
-                righty = nonzeroy[right_lane_inds]
-
-        # to plot
-                out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-                out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-
-        # Fit a second order polynomial to each
-                left_fit = numpy.polyfit(lefty, leftx, 2)
-                right_fit = numpy.polyfit(righty, rightx, 2)
-
-                return left_fit, right_fit, out_img
-        def get_fit_xy(img, left_fit, right_fit):
-                ploty = numpy.linspace(0, img.shape[0]-1, img.shape[0])
-                left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-                right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
-
-                return left_fitx, right_fitx, ploty
-        left_fit, right_fit, out_img = find_line_fit(binary, nwindows=15, margin=10, minumpyix=5)
-        left_fitx, right_fitx, ploty = get_fit_xy(binary, left_fit, right_fit)
-
-        def measure_curvature_real(left_fitx, right_fitx, ploty, left_fit, right_fit):
-
-                # Define conversions in x and y from pixels space to meters
-                ym_per_pix = 16.0/720 # meters per pixel in y dimension
-                xm_per_pix = 3.7/1000 # meters per pixel in x dimension
-                
-                leftx = left_fitx*xm_per_pix
-                rightx = right_fitx*xm_per_pix
-                ploty = ploty*ym_per_pix
-                
-                left_fit_cr = numpy.polyfit(ploty, leftx, 2)
-                right_fit_cr = numpy.polyfit(ploty, rightx, 2)
-
-                # Define y-value where we want radius of curvature
-                # We'll choose the maximum y-value, corresponding to the bottom of the image
-                y_eval = numpy.max(ploty)
-                
-                # Implement the calculation of R_curve (radius of curvature) 
-                left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / numpy.absolute(2*left_fit_cr[0])
-                right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / numpy.absolute(2*right_fit_cr[0])
-                
-                return left_curverad, right_curverad
-
-        left_curvature,right_curvature=measure_curvature_real(left_fitx,right_fitx,ploty,left_fit,right_fit)
-        return (left_curvature+right_curvature)/2
-
     def aruco_detect(self, image):
         # global distance
         this_aruco_dictionary = cv2.aruco.Dictionary_get(
@@ -258,10 +151,6 @@ class Follower:
 
         warped = cv2.warpPerspective(image, M, (w, h))
         hsv2 = cv2.cvtColor(warped, cv2.COLOR_BGR2HSV)
-        binary = self.easy_binarization(warped)
-        curvature = self.caluelate_curvature(binary)
-        rospy.loginfo(curvature)
-
 
         mask3 = cv2.inRange(hsv2, lower_yellow, upper_yellow)
         mask4 = cv2.inRange(hsv2, lower_white, upper_white)
@@ -285,41 +174,8 @@ class Follower:
             cv2.circle(warped, (cx2, cy2), 10, (255, 255, 255), -1)
             cv2.circle(warped, (fpt_x, fpt_y), 10, (128, 128, 128), -1)
 
-        # if M1['m00'] > 0:
-        #         if M2['m00']<=0:
-        #                 M2['m00']=0.01
-        #         cx1 = int(M1['m10']/M1['m00'])
-        #         cy1 = int(M1['m01']/M1['m00'])
-
-        #         cx2 = int(M2['m10']/M2['m00'])
-        #         cy2 = int(M2['m01']/M2['m00'])
-
-        #         fpt_x = (cx1 + cx2)/2
-        #         fpt_y = (cy1 + cy2)/2 + 2*h/3
-
-        #         cv2.circle(image, (cx1, cy1), 10, (0,255,255), -1)
-        #         cv2.circle(image, (cx2, cy2), 10, (255,255,255), -1)
-        #         cv2.circle(image, (fpt_x, fpt_y), 10, (128,128,128), -1)
-            # angula_vel=(err*90.0/160)/15
             err = w/2 - fpt_x
-            angula_vel = kp*err+kd*(err-2*self.previous_err+self.last_err)
-            self.previous_err = self.last_err
-            self.last_err = err
 
-            if len(self.err_deque) == 0:
-                self.err_deque.append(err)
-            elif len(self.err_deque) == 10:
-                self.err_deque.popleft()
-                self.err_deque.append(err)
-            else:
-                self.err_deque.append(err)
-
-            def find_maxerr(deque):
-                maxerr = abs(deque[0])
-                for i in range(0, len(deque)):
-                    if maxerr <= abs(deque[i]):
-                        maxerr = abs(deque[i])
-                return maxerr
             if detect and 0.9<self.distance <10 and count < 1:
                     if self.distance<1.1:
                         self.shutdown()
@@ -333,23 +189,16 @@ class Follower:
                     else:
                              self.velocity=0.3
                              self.twist.linear.x = self.velocity
-                             self.twist.angular.z = angula_vel
+                             self.twist.angular.z = err*3/80
                              self.cmd_vel_pub.publish(self.twist)
             else:
-                # angula_vel=(err*0.07)
-                if curvature<600:
-                    self.velocity = 0.3
-                else:
-                    self.velocity = 0.6
-                self.twist.linear.x = self.velocity
-                self.twist.angular.z = angula_vel
+
+                self.twist.linear.x = 0.3
+                self.twist.angular.z = err*3/80
                 self.cmd_vel_pub.publish(self.twist)
                 
                 if not detect:
                         count=0
-                # with open('/home/face/catkin_EE346/src/lane_following/scripts/err.txt', 'a') as file_handle:
-                #     file_handle.write(str(curvature))
-                #     file_handle.write('\n')
 
             cv2.imshow("window", image)
             cv2.imshow("up", warped)
